@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Fluxo de Demandas</title>
+    <!-- Carregando Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carregando Google Font: Orbitron (Nova fonte tecnológica) -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados e Tailwind Config */
+        :root {
+            --primary-color: #FF0000; 
+            --accent-color: #ef4444; 
+            --neon-red: #FF0000; 
+            --glass-blur: 10px;
+        }
+        body {
+            /* Usando Orbitron para o tema tecnológico */
+            font-family: 'Orbitron', sans-serif;
+            min-height: 100vh;
+            background-color: #0d1117; /* Fundo escuro para efeito tecnológico */
+            color: #e2e8f0; /* Texto claro */
+            overflow-x: hidden;
+        }
+
+        /* Título Limpo e Centralizado */
+        .main-title {
+            color: #FFFFFF; 
+            -webkit-text-stroke: 1px var(--neon-red); 
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.7); 
+            transition: all 0.3s ease-in-out;
+        }
+        .main-title:hover {
+             text-shadow: 0 0 15px var(--neon-red);
+             cursor: default;
+        }
+
+        /* Estilo de Botão 3D (Não é glass, mantém o contraste) */
+        .3d-button {
+            background: linear-gradient(180deg, var(--neon-red) 0%, #cc0000 100%);
+            border: 2px solid #a00000; 
+            box-shadow: 0 6px 0 0 #5c0000; 
+            border-radius: 0.75rem; 
+            transition: all 0.15s ease-out;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); 
+        }
+        .3d-button:hover {
+            filter: brightness(1.1);
+        }
+        .3d-button:active {
+            box-shadow: 0 0 0 0 #5c0000; 
+            transform: translateY(6px); 
+            background: linear-gradient(180deg, #cc0000 0%, var(--neon-red) 100%);
+        }
+
+        /* NOVO: Efeito Glass para Containers (Header, Colunas) */
+        .glass-container {
+            background-color: rgba(255, 255, 255, 0.05); /* Fundo muito sutil */
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid rgba(255, 255, 255, 0.1); /* Borda muito sutil */
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); /* Sombra para profundidade */
+            color: #e2e8f0; /* Garante que o texto dentro seja claro */
+        }
+        
+        /* Efeito Glass para Text Boxes (Inputs, Textareas) */
+        .glass-input {
+            background-color: rgba(255, 255, 255, 0.1); 
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px); 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            color: #e2e8f0; 
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        .glass-input::placeholder {
+            color: #94a3b8; 
+        }
+        .glass-input:focus {
+            background-color: rgba(255, 255, 255, 0.15); 
+            border-color: var(--neon-red);
+        }
+
+        /* Estilo da Coluna Kanban (Agora usa glass-container) */
+        .kanban-column {
+            border-radius: 1rem;
+            padding: 1rem;
+            min-height: 200px;
+        }
+        .kanban-column h2 {
+            color: var(--neon-red); /* Títulos em neon para destaque */
+        }
+
+        /* Estilo para Demand Card (Glass Card) */
+        .demand-card {
+            cursor: grab;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            
+            /* Efeito Glass do Card */
+            background-color: rgba(255, 255, 255, 0.08); /* Ligeiramente mais opaco */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            
+            transition: all 0.2s ease-in-out;
+        }
+        .demand-card:hover {
+            background-color: rgba(255, 255, 255, 0.15); 
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2); /* Sutil glow ao passar o mouse */
+            transform: translateY(-2px);
+        }
+        /* Estilos de Estado do Card (apenas cores de borda/sombra) */
+        .demand-card.urgent {
+            border-left: 6px solid var(--neon-red);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5); /* Glow intenso para urgentes */
+        }
+        .demand-card.delayed {
+            border-left: 6px solid #f59e0b; /* Amarelo/Âmbar para atraso */
+        }
+        /* Garantindo alto contraste do texto dentro dos cards */
+        .demand-card h4 { color: #ffffff; }
+        .demand-card p { color: #cbd5e1; }
+        .demand-card span { color: #94a3b8; }
+
+
+        /* Canvas de Fundo - Fixado e ocupando toda a tela */
+        #techCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -10; 
+            pointer-events: none; 
+        }
+
+        .main-content-wrapper {
+            position: relative;
+            z-index: 10;
+            padding: 1rem;
+            min-height: 100vh; 
+            /* Não precisa mais de bg transparente, pois o glass container já faz o trabalho */
+        }
+        
+        /* Estilo para Drag-and-Drop (usando o tema Neon) */
+        .drag-over {
+            border: 2px dashed var(--neon-red);
+            background-color: rgba(255, 0, 0, 0.1); 
+        }
+
+        /* Responsividade para colunas */
+        @media (min-width: 1024px) {
+            .kanban-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 1023px) {
+            .kanban-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- CANVAS para o Efeito de Fundo Tecnológico -->
+    <canvas id="techCanvas"></canvas>
+
+    <!-- Wrapper para o Conteúdo Principal -->
+    <div id="main-content-wrapper" class="main-content-wrapper">
+
+        <!-- Cabeçalho Principal (AGORA COM EFEITO GLASS) -->
+        <header class="mb-8 p-4 rounded-xl shadow-lg glass-container">
+            <!-- Estrutura CENTRALIZADA -->
+            <div class="flex flex-col items-center text-center">
+                <!-- Título e ID do Usuário -->
+                <div class="mb-4 lg:mb-0">
+                    <!-- Título com Fonte Orbitron e Estilo Limpo -->
+                    <h1 class="text-3xl font-black main-title">FLUXO DE DEMANDAS [OS/2]</h1>
+                    <p id="userIdDisplay" class="text-sm text-gray-400 mt-1" style="font-family: 'Inter', sans-serif;">ID do Usuário: Carregando...</p>
+                </div>
+
+                <!-- Search Input e Botões -->
+                <div class="flex flex-col md:flex-row items-stretch md:items-center w-full lg:w-auto space-y-3 md:space-y-0 md:space-x-4">
+                    <!-- Campo de Busca com Efeito Glass -->
+                    <input type="text" id="searchInput" placeholder="Buscar demanda por título..." class="glass-input w-full md:w-64 p-2 rounded-lg focus:ring-red-500 focus:border-red-500" style="font-family: 'Inter', sans-serif;">
+                    
+                    <!-- Botões (flex-1 para tamanhos iguais) -->
+                    <div class="flex space-x-3 w-full md:w-auto">
+                        <!-- Botão de Nova Demanda com flex-1 (igual tamanho) -->
+                        <button id="addDemandBtn" class="flex-1 text-white font-semibold py-2 px-4 rounded-xl 3d-button">
+                            <svg class="w-5 h-5 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            <span class="hidden md:inline" style="font-family: 'Inter', sans-serif;">Nova Demanda</span>
+                            <span class="md:hidden" style="font-family: 'Inter', sans-serif;">Novo</span>
+                        </button>
+                        <!-- Botão de Histórico com flex-1 (igual tamanho) e Tema Escuro/3D -->
+                        <button id="historyBtn" class="flex-1 text-white font-semibold py-2 px-4 rounded-xl 3d-button" style="background: linear-gradient(180deg, #4b5563 0%, #1f2937 100%); box-shadow: 0 6px 0 0 #0f172a; border-color: #1f2937;">
+                            <svg class="w-5 h-5 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                            <span class="hidden md:inline" style="font-family: 'Inter', sans-serif;">Histórico</span>
+                            <span class="md:hidden" style="font-family: 'Inter', sans-serif;">Hist.</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Estrutura Kanban Grid -->
+        <div class="kanban-grid grid gap-6 lg:gap-8">
+            <!-- Colunas com EFEITO GLASS -->
+            <div id="pending-col" class="kanban-column glass-container" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'pending')">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2 flex items-center" style="font-family: 'Inter', sans-serif;">
+                    <svg class="w-6 h-6 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                    Pendente
+                </h2>
+                <div id="pending-list" class="space-y-4" style="font-family: 'Inter', sans-serif;">
+                    <!-- Demandas Pendentes serão injetadas aqui -->
+                </div>
+            </div>
+
+            <div id="completed-col" class="kanban-column glass-container" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'completed')">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2 flex items-center" style="font-family: 'Inter', sans-serif;">
+                    <svg class="w-6 h-6 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Concluída
+                </h2>
+                <div id="completed-list" class="space-y-4" style="font-family: 'Inter', sans-serif;">
+                    <p class="text-gray-400 text-sm">Demandas concluídas recentes. Use o botão "Histórico" para ver todas.</p>
+                    <!-- Apenas as demandas concluídas mais recentes serão exibidas aqui -->
+                </div>
+            </div>
+
+            <div id="delayed-col" class="kanban-column glass-container" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'delayed')">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2 flex items-center" style="font-family: 'Inter', sans-serif;">
+                    <svg class="w-6 h-6 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                    Atrasada
+                </h2>
+                <div id="delayed-list" class="space-y-4" style="font-family: 'Inter', sans-serif;">
+                    <!-- Demandas Atrasadas serão injetadas aqui -->
+                </div>
+            </div>
+        </div>
+    </div> <!-- Fim do Main Content Wrapper -->
+
+    <!-- Modal para Adicionar/Editar Demanda (AGORA COM EFEITO GLASS NO CONTEÚDO) -->
+    <div id="demandModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <!-- Conteúdo do Modal (Fundo Escuro e Transparente com Glass) -->
+        <div class="glass-container text-white rounded-xl p-6 w-full max-w-md shadow-2xl transform transition-all duration-300 border border-red-700/50">
+            <h3 id="modalTitle" class="text-2xl font-bold mb-4 text-red-500" style="font-family: 'Orbitron', sans-serif;">Nova Demanda</h3>
+            <form id="demandForm" style="font-family: 'Inter', sans-serif;">
+                <input type="hidden" id="demandId">
+                
+                <div class="mb-4">
+                    <label for="title" class="block text-sm font-medium mb-1">Título</label>
+                    <!-- Input com Efeito Glass -->
+                    <input type="text" id="title" required class="glass-input w-full p-2 rounded-lg focus:ring-red-500 focus:border-red-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="description" class="block text-sm font-medium mb-1">Descrição</label>
+                    <!-- Textarea com Efeito Glass -->
+                    <textarea id="description" rows="3" class="glass-input w-full p-2 rounded-lg focus:ring-red-500 focus:border-red-500"></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label for="dueDate" class="block text-sm font-medium mb-1">Data de Vencimento (Opcional)</label>
+                    <!-- Input Date com Efeito Glass -->
+                    <input type="date" id="dueDate" class="glass-input w-full p-2 rounded-lg focus:ring-red-500 focus:border-red-500 text-gray-200">
+                </div>
+
+                <div class="mb-6 flex items-center">
+                    <input type="checkbox" id="isUrgent" class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500 bg-transparent">
+                    <label for="isUrgent" class="ml-2 block text-sm font-medium text-red-400">Marcar como Urgente ⚡️</label>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <!-- Botão Cancelar com 3D (Tema Escuro) -->
+                    <button type="button" id="closeModalBtn" class="py-2 px-4 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-xl transition duration-150 3d-button" style="background: linear-gradient(180deg, #4b5563 0%, #1f2937 100%); box-shadow: 0 6px 0 0 #0f172a; border-color: #1f2937;">Cancelar</button>
+                    <!-- Botão Salvar com 3D (Tema Neon Red) -->
+                    <button type="submit" class="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition duration-150 3d-button">Salvar Demanda</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Histórico de Demandas Concluídas (AGORA COM EFEITO GLASS NO CONTEÚDO) -->
+    <div id="historyModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <!-- Conteúdo do Histórico (Fundo Escuro e Transparente com Glass) -->
+        <div class="glass-container text-white rounded-xl p-6 w-full max-w-4xl h-5/6 shadow-2xl overflow-y-auto transform transition-all duration-300 border border-red-700/50">
+            <h3 class="text-2xl font-bold mb-6 text-red-500 border-b pb-2" style="font-family: 'Orbitron', sans-serif;">Histórico de Demandas Concluídas</h3>
+            <div id="history-list" class="completed-grid grid gap-4" style="font-family: 'Inter', sans-serif;">
+                <!-- Histórico será injetado aqui -->
+                <p id="historyEmpty" class="text-gray-400 italic">Nenhuma demanda concluída no histórico ainda.</p>
+            </div>
+            <div class="flex justify-end mt-6">
+                 <!-- Botão Fechar com 3D (Tema Escuro) -->
+                <button type="button" id="closeHistoryModalBtn" class="py-2 px-4 bg-gray-700 hover:bg-gray-800 text-white font-semibold rounded-xl transition duration-150 3d-button" style="background: linear-gradient(180deg, #4b5563 0%, #1f2937 100%); box-shadow: 0 6px 0 0 #0f172a; border-color: #1f2937;">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensagem de Erro/Sucesso (Toast) -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white p-3 rounded-lg shadow-xl hidden transition duration-300 z-50" style="font-family: 'Inter', sans-serif;"></div>
+
+    <!-- Bloco de scripts do Firebase e JS da Aplicação -->
+    <script type="module">
+        // Importações do Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, orderBy, limit, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais (fornecidas pelo ambiente Canvas)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        let fullDemandList = []; 
+
+        // Elementos DOM
+        const searchInput = document.getElementById('searchInput');
+
+        // Configurações e Inicialização do Firebase
+        if (firebaseConfig) {
+            setLogLevel('debug'); // Ativa logs do Firestore
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // 1. Autenticação e Configuração do Usuário
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('userIdDisplay').textContent = `ID do Usuário: ${userId}`;
+                    isAuthReady = true;
+                    loadDemands();
+                } else {
+                    try {
+                         if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Erro na autenticação:", error);
+                        showToast(`Erro na autenticação: ${error.message}`, 'error');
+                        userId = crypto.randomUUID(); 
+                        document.getElementById('userIdDisplay').textContent = `ID do Usuário (Anônimo): ${userId}`;
+                        isAuthReady = true;
+                        loadDemands(); 
+                    }
+                }
+            });
+        } else {
+            console.error("Configuração do Firebase não encontrada.");
+            showToast("Erro: Configuração do Firebase não encontrada.", 'error');
+        }
+        
+        // 2. Funções de Utilidade
+        
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'fixed bottom-4 right-4 p-3 rounded-lg shadow-xl transition duration-300 z-50';
+            
+            if (type === 'error') {
+                toast.classList.add('bg-red-600');
+            } else if (type === 'success') {
+                toast.classList.add('bg-green-600');
+            } else {
+                toast.classList.add('bg-gray-800');
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                const date = new Date(dateString + 'T00:00:00'); 
+                return date.toLocaleDateString('pt-BR');
+            } catch (e) {
+                console.error("Erro ao formatar data:", e);
+                return dateString;
+            }
+        }
+
+        function isPastDue(dueDateString) {
+            if (!dueDateString) return false;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const due = new Date(dueDateString + 'T00:00:00');
+            return due < today;
+        }
+
+        // 3. Funções de Persistência (Firestore)
+
+        function getDemandsCollectionRef() {
+            if (!db || !userId) throw new Error("Firebase não inicializado ou userId ausente.");
+            const collectionPath = `artifacts/${appId}/users/${userId}/demands`;
+            return collection(db, collectionPath);
+        }
+
+        async function saveDemand(demandData, id = null) {
+            try {
+                const collectionRef = getDemandsCollectionRef();
+                if (id) {
+                    const docRef = doc(collectionRef, id);
+                    await updateDoc(docRef, {
+                        ...demandData,
+                        updatedAt: serverTimestamp()
+                    });
+                    showToast("Demanda atualizada com sucesso!", 'success');
+                } else {
+                    await addDoc(collectionRef, {
+                        ...demandData,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    showToast("Nova demanda adicionada!", 'success');
+                }
+            } catch (error) {
+                console.error("Erro ao salvar demanda:", error);
+                showToast(`Erro ao salvar demanda: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateDemandStatus(id, newStatus) {
+             try {
+                const collectionRef = getDemandsCollectionRef();
+                const docRef = doc(collectionRef, id);
+
+                const updateData = {
+                    status: newStatus,
+                    updatedAt: serverTimestamp(),
+                };
+                
+                if (newStatus === 'completed') {
+                    updateData.isUrgent = false;
+                }
+
+                await updateDoc(docRef, updateData);
+                showToast(`Demanda movida para ${newStatus === 'pending' ? 'Pendente' : newStatus === 'completed' ? 'Concluída' : 'Atrasada'}`, 'success');
+
+            } catch (error) {
+                console.error("Erro ao atualizar status:", error);
+                showToast(`Erro ao atualizar status: ${error.message}`, 'error');
+            }
+        }
+
+        async function toggleUrgent(id, isUrgent) {
+            try {
+                const collectionRef = getDemandsCollectionRef();
+                const docRef = doc(collectionRef, id);
+                
+                const updateData = {
+                    isUrgent: isUrgent,
+                    updatedAt: serverTimestamp(),
+                };
+
+                await updateDoc(docRef, updateData);
+                showToast(`Demanda marcada como ${isUrgent ? 'Urgente ⚡️' : 'Normal'}`, 'success');
+            } catch (error) {
+                console.error("Erro ao alternar urgência:", error);
+                showToast(`Erro ao alternar urgência: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteDemand(id) {
+            try {
+                const collectionRef = getDemandsCollectionRef();
+                const docRef = doc(collectionRef, id);
+                await deleteDoc(docRef);
+                showToast("Demanda removida permanentemente.", 'success');
+            } catch (error) {
+                console.error("Erro ao deletar demanda:", error);
+                showToast(`Erro ao deletar demanda: ${error.message}`, 'error');
+            }
+        }
+
+
+        // 4. Funções de Renderização e Visualização
+
+        function createDemandCardHTML(demand) {
+            const isUrgent = demand.isUrgent;
+            const isDelayed = demand.status === 'delayed';
+            
+            // Usamos a classe demand-card que já tem o estilo glass
+            const cardClasses = ['demand-card', 'p-4', 'transition-all', 'duration-150']; 
+
+            if (isUrgent && demand.status !== 'completed') {
+                cardClasses.push('urgent'); // Aplica a borda e glow neon
+            } else if (isDelayed) {
+                cardClasses.push('delayed'); // Aplica a borda amarela
+            }
+
+            const dueDateFormatted = formatDate(demand.dueDate);
+            // Cores do texto claras, com destaque para a cor de Atrasado
+            const dueDateColor = isDelayed ? 'text-red-400 font-bold' : 'text-gray-400'; 
+
+            const urgencyButton = demand.status !== 'completed' ? `
+                <button onclick="toggleUrgent('${demand.id}', ${!isUrgent})" class="text-xs font-semibold py-1 px-2 rounded-full transition duration-150 ${isUrgent ? 'bg-red-700 text-white hover:bg-red-800 shadow-md' : 'bg-gray-700 text-gray-300 hover:bg-gray-600 shadow-sm'}">
+                    ${isUrgent ? '⚡️ Desmarcar Urgente' : 'Marcar Urgente'}
+                </button>
+            ` : '';
+            
+            const editButton = demand.status !== 'completed' ? `
+                <button onclick="openModalForEdit('${demand.id}')" class="text-gray-400 hover:text-red-500 ml-2" title="Editar Demanda">
+                    <!-- Icone de Editar -->
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                </button>
+            ` : `
+                <button onclick="deleteDemand('${demand.id}')" class="text-gray-400 hover:text-red-500 ml-2" title="Remover do Histórico">
+                    <!-- Icone de Lixeira -->
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            `;
+
+            return `
+                <div 
+                    id="demand-${demand.id}" 
+                    draggable="true" 
+                    ondragstart="handleDragStart(event)" 
+                    class="${cardClasses.join(' ')}" 
+                    data-id="${demand.id}">
+                    
+                    <h4 class="text-lg font-semibold mb-2 ${isUrgent ? 'text-red-400' : 'text-white'}">${demand.title}</h4>
+                    
+                    <p class="text-sm text-gray-300 mb-3">${demand.description.substring(0, 80)}${demand.description.length > 80 ? '...' : ''}</p>
+                    
+                    <div class="flex items-center justify-between text-xs mb-3">
+                        <span class="${dueDateColor} flex items-center" style="font-family: 'Inter', sans-serif;">
+                            <!-- Icone de Calendário/Relógio -->
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 12h5m-5 3h5m-1-9H3a2 2 0 00-2 2v10a2 2 0 002 2h18a2 2 0 002-2V7a2 2 0 00-2-2H9a2 2 0 00-2 2v10"></path></svg>
+                            Vence: ${dueDateFormatted}
+                        </span>
+                        ${urgencyButton}
+                    </div>
+                    <div class="flex justify-end pt-2 border-t border-gray-700">
+                        ${editButton}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renderiza todas as demandas nas colunas apropriadas, aplicando filtro de pesquisa.
+         * @param {Array<object>} [list=fullDemandList] - Lista de demandas a ser renderizada. Se vazia, usa a lista completa global.
+         */
+        function renderDemands(list = fullDemandList) {
+            const pendingList = document.getElementById('pending-list');
+            const completedList = document.getElementById('completed-list');
+            const delayedList = document.getElementById('delayed-list');
+            
+            pendingList.innerHTML = '';
+            completedList.innerHTML = '';
+            delayedList.innerHTML = '';
+
+            const searchTerm = searchInput.value.toLowerCase();
+            
+            // 1. Aplica o filtro de pesquisa (por título ou descrição)
+            let filteredDemands = list;
+            if (searchTerm.length > 0) {
+                 filteredDemands = list.filter(d => 
+                    d.title.toLowerCase().includes(searchTerm) || 
+                    d.description.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            const pending = [];
+            const completed = [];
+            const delayed = [];
+
+            // 2. Classificação das demandas por status e urgência/data
+            filteredDemands.forEach(d => {
+                if (d.status === 'completed') {
+                    completed.push(d);
+                } else {
+                    const isDelayed = d.dueDate && isPastDue(d.dueDate);
+                    if (d.status === 'delayed' || isDelayed) {
+                        delayed.push(d);
+                    } else {
+                        pending.push(d);
+                    }
+                }
+            });
+
+            // 3. Ordenação da lista Pendente: Urgentes no topo
+            pending.sort((a, b) => {
+                if (a.isUrgent && !b.isUrgent) return -1;
+                if (!a.isUrgent && b.isUrgent) return 1;
+                if (a.createdAt && b.createdAt) {
+                    return b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime();
+                }
+                return 0;
+            });
+
+            // 4. Renderização
+
+            // Renderiza Pendentes
+            if (pending.length === 0) {
+                 pendingList.innerHTML = `<p class="text-gray-400 italic">${searchTerm ? 'Nenhuma demanda encontrada.' : 'Nenhuma demanda pendente. Adicione uma nova!'}</p>`;
+            } else {
+                pending.forEach(d => pendingList.innerHTML += createDemandCardHTML(d));
+            }
+
+            // Renderiza Atrasadas
+            delayed.sort((a, b) => {
+                if (!a.dueDate) return 1; 
+                if (!b.dueDate) return -1;
+                return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+            });
+            if (delayed.length === 0) {
+                 delayedList.innerHTML = `<p class="text-gray-400 italic">${searchTerm ? 'Nenhuma demanda atrasada encontrada.' : 'Nenhuma demanda marcada como atrasada.'}</p>`;
+            } else {
+                delayed.forEach(d => delayedList.innerHTML += createDemandCardHTML(d));
+            }
+
+            // Renderiza Apenas as 3 Concluídas mais recentes na coluna principal
+            completed.sort((a, b) => {
+                return b.updatedAt.toDate().getTime() - a.updatedAt.toDate().getTime();
+            });
+            completedList.innerHTML = `<p class="text-gray-400 text-sm mb-4">${searchTerm ? '' : 'Demandas concluídas recentes. Use o botão "Histórico" para ver todas.'}</p>`;
+            completed.slice(0, 3).forEach(d => completedList.innerHTML += createDemandCardHTML(d));
+            if (completed.length === 0 && !searchTerm) {
+                 completedList.innerHTML = '<p class="text-gray-400 italic">Nenhuma demanda concluída recentemente.</p>';
+            }
+        }
+        
+        function renderHistory(demands) {
+            const historyModal = document.getElementById('historyModal');
+            const historyList = document.getElementById('history-list');
+            const historyEmpty = document.getElementById('historyEmpty');
+            
+            historyList.innerHTML = '';
+            
+            const completedDemands = demands
+                .filter(d => d.status === 'completed')
+                .sort((a, b) => b.updatedAt.toDate().getTime() - a.updatedAt.toDate().getTime());
+
+            if (completedDemands.length > 0) {
+                historyEmpty.classList.add('hidden');
+                completedDemands.forEach(d => {
+                    let html = createDemandCardHTML(d).replace(`openModalForEdit('${d.id}')`, `deleteDemand('${d.id}')`);
+                    historyList.innerHTML += html;
+                });
+            } else {
+                historyEmpty.classList.remove('hidden');
+            }
+
+            historyModal.classList.remove('hidden');
+            historyModal.classList.add('flex');
+        }
+
+        // 5. Listener do Firestore (Real-time)
+
+        function loadDemands() {
+            if (!isAuthReady || !db || !userId) return;
+
+            try {
+                const collectionRef = getDemandsCollectionRef();
+                const q = query(collectionRef); 
+
+                onSnapshot(q, (snapshot) => {
+                    const demands = [];
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        demands.push({
+                            id: doc.id,
+                            title: data.title || 'Sem Título',
+                            description: data.description || 'Sem descrição.',
+                            status: data.status || 'pending',
+                            isUrgent: data.isUrgent || false,
+                            dueDate: data.dueDate || '',
+                            createdAt: data.createdAt,
+                            updatedAt: data.updatedAt,
+                        });
+                    });
+
+                    // Armazena a lista completa não filtrada
+                    fullDemandList = demands; 
+
+                    // Chama a renderização para aplicar o filtro de pesquisa atual
+                    renderDemands(); 
+
+                }, (error) => {
+                    console.error("Erro no onSnapshot:", error);
+                    showToast(`Erro ao carregar dados em tempo real: ${error.message}`, 'error');
+                });
+            } catch (error) {
+                 console.error("Erro ao configurar listener:", error);
+                 showToast(`Erro ao configurar listener: ${error.message}`, 'error');
+            }
+        }
+
+        // 6. Funções de Drag-and-Drop (D&D)
+
+        window.handleDragStart = function(event) {
+            event.dataTransfer.setData('text/plain', event.target.dataset.id);
+            event.target.classList.add('opacity-50');
+        };
+
+        window.handleDragOver = function(event) {
+            event.preventDefault(); 
+            event.currentTarget.classList.add('drag-over');
+        };
+
+        window.handleDragLeave = function(event) {
+            event.currentTarget.classList.remove('drag-over');
+        };
+
+        window.handleDrop = function(event, newStatus) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            
+            const demandId = event.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(`demand-${demandId}`);
+
+            if (draggedElement) {
+                draggedElement.classList.remove('opacity-50');
+                updateDemandStatus(demandId, newStatus);
+            }
+        };
+
+        // 7. Funções do Modal e Eventos
+
+        const demandModal = document.getElementById('demandModal');
+        const demandForm = document.getElementById('demandForm');
+        const modalTitle = document.getElementById('modalTitle');
+        const historyModal = document.getElementById('historyModal');
+
+        document.getElementById('addDemandBtn').addEventListener('click', () => {
+            modalTitle.textContent = 'Nova Demanda';
+            demandForm.reset();
+            document.getElementById('demandId').value = '';
+            demandModal.classList.remove('hidden');
+            demandModal.classList.add('flex');
+        });
+
+        document.getElementById('closeModalBtn').addEventListener('click', () => {
+            demandModal.classList.add('hidden');
+            demandModal.classList.remove('flex');
+        });
+
+        document.getElementById('historyBtn').addEventListener('click', () => {
+            if (fullDemandList) {
+                 renderHistory(fullDemandList);
+            } else {
+                 showToast("Aguarde a inicialização dos dados.", 'info');
+            }
+        });
+
+        document.getElementById('closeHistoryModalBtn').addEventListener('click', () => {
+            historyModal.classList.add('hidden');
+            historyModal.classList.remove('flex');
+        });
+
+        // Listener para o campo de busca
+        searchInput.addEventListener('input', () => {
+            renderDemands();
+        });
+
+        window.openModalForEdit = function(id) {
+            const demand = fullDemandList.find(d => d.id === id);
+            if (demand) {
+                modalTitle.textContent = 'Editar Demanda';
+                document.getElementById('demandId').value = demand.id;
+                document.getElementById('title').value = demand.title;
+                document.getElementById('description').value = demand.description;
+                document.getElementById('dueDate').value = demand.dueDate;
+                document.getElementById('isUrgent').checked = demand.isUrgent;
+                demandModal.classList.remove('hidden');
+                demandModal.classList.add('flex');
+            } else {
+                showToast("Demanda não encontrada.", 'error');
+            }
+        };
+        
+        window.deleteDemand = deleteDemand; 
+        window.toggleUrgent = toggleUrgent; 
+
+        demandForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('demandId').value;
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const dueDate = document.getElementById('dueDate').value;
+            const isUrgent = document.getElementById('isUrgent').checked;
+            
+            let status = 'pending';
+            if (id) {
+                 const currentDemand = fullDemandList.find(d => d.id === id);
+                 status = currentDemand ? currentDemand.status : 'pending';
+                 
+                 // Lógica para manter/atualizar status ao editar
+                 if (status === 'delayed' && dueDate && !isPastDue(dueDate)) {
+                     status = 'pending';
+                 } else if (currentDemand && currentDemand.dueDate && isPastDue(currentDemand.dueDate) && status !== 'completed') {
+                      status = 'delayed'; // Garante que itens atrasados continuem em atraso ao editar
+                 } else if (dueDate && isPastDue(dueDate) && status !== 'completed') {
+                      status = 'delayed';
+                 } else if (status === 'delayed' && (!dueDate || !isPastDue(dueDate))) {
+                      status = 'pending';
+                 }
+
+            } else {
+                // Se for nova e a data for passada, já entra como 'delayed'
+                if (dueDate && isPastDue(dueDate)) {
+                    status = 'delayed';
+                }
+            }
+
+
+            const demandData = {
+                title,
+                description,
+                dueDate,
+                isUrgent,
+                status
+            };
+
+            saveDemand(demandData, id);
+            
+            demandModal.classList.add('hidden');
+            demandModal.classList.remove('flex');
+        });
+
+        // ===========================================
+        // 8. EFEITO DE FUNDO TECNOLÓGICO (CANVAS JS)
+        // ===========================================
+        
+        const canvas = document.getElementById('techCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let columns = [];
+        const fontSize = 16; 
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+-=[]{};:"\\|,.<>/?';
+        const color = '#FF0000'; // Vermelho Neon para a chuva digital
+        
+        /**
+         * Ajusta o tamanho do canvas para o tamanho da janela e inicializa as colunas de "chuva digital".
+         */
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Recalcula o número de colunas e reinicia a posição de Y
+            columns = [];
+            const numColumns = Math.floor(width / fontSize);
+            for(let i = 0; i < numColumns; i++) {
+                // Inicializa cada coluna com uma altura aleatória (posição Y)
+                columns[i] = Math.floor(Math.random() * height / fontSize);
+            }
+        }
+
+        /**
+         * Desenha o quadro de animação.
+         */
+        function draw() {
+            // Fundo semi-transparente preto para o rastro (efeito de "esmaecer")
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.fillStyle = color;
+            ctx.font = `${fontSize}px monospace`;
+            
+            // Desenha cada coluna
+            for(let i = 0; i < columns.length; i++) {
+                // Seleciona um caractere aleatório
+                const text = chars.charAt(Math.floor(Math.random() * chars.length));
+                
+                // Posição X da coluna
+                const x = i * fontSize;
+                // Posição Y da coluna
+                const y = columns[i] * fontSize;
+                
+                // Desenha o caractere
+                ctx.fillText(text, x, y);
+                
+                // Se o caractere desceu além da tela ou de forma aleatória (para criar o efeito de chuva), 
+                // move-o de volta para o topo
+                if (y > height && Math.random() > 0.975) {
+                    columns[i] = 0; // Reinicia no topo
+                } else if (y < height) {
+                    // Faz o caractere "cair"
+                    columns[i]++;
+                }
+            }
+        }
+        
+        // Loop principal de animação
+        function animate() {
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        // Inicializa o canvas e inicia a animação
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = function() {
+            resizeCanvas();
+            animate();
+        };
+
+    </script>
+</body>
+</html>
+
