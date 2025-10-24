@@ -310,9 +310,9 @@
 
         // Variáveis globais (fornecidas pelo ambiente Canvas)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+        
+        let firebaseConfig = null;
         let app;
         let db;
         let auth;
@@ -323,40 +323,54 @@
         // Elementos DOM
         const searchInput = document.getElementById('searchInput');
 
-        // Configurações e Inicialização do Firebase
-        if (firebaseConfig) {
-            setLogLevel('debug'); // Ativa logs do Firestore
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
+        // Configurações e Inicialização do Firebase (AGORA MAIS ROBUSTO)
+        try {
+            // 1. Tenta analisar a configuração do Firebase
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = JSON.parse(__firebase_config);
+            }
 
-            // 1. Autenticação e Configuração do Usuário
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    document.getElementById('userIdDisplay').textContent = `ID do Usuário: ${userId}`;
-                    isAuthReady = true;
-                    loadDemands();
-                } else {
-                    try {
-                         if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Erro na autenticação:", error);
-                        showToast(`Erro na autenticação: ${error.message}`, 'error');
-                        userId = crypto.randomUUID(); 
-                        document.getElementById('userIdDisplay').textContent = `ID do Usuário (Anônimo): ${userId}`;
+            if (firebaseConfig) {
+                setLogLevel('debug'); // Ativa logs do Firestore
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 2. Autenticação e Configuração do Usuário
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('userIdDisplay').textContent = `ID do Usuário: ${userId}`;
                         isAuthReady = true;
-                        loadDemands(); 
+                        loadDemands();
+                    } else {
+                        try {
+                             if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (authError) {
+                            console.error("Erro na autenticação (Fallback para Anônimo):", authError);
+                            showToast(`Erro na autenticação: ${authError.message}`, 'error');
+                            // Fallback estrito: tenta novamente de forma anônima ou gera UUID se falhar
+                            userId = auth.currentUser?.uid || crypto.randomUUID(); 
+                            document.getElementById('userIdDisplay').textContent = `ID do Usuário (Falha Auth): ${userId}`;
+                            isAuthReady = true;
+                            loadDemands(); 
+                        }
                     }
-                }
-            });
-        } else {
-            console.error("Configuração do Firebase não encontrada.");
-            showToast("Erro: Configuração do Firebase não encontrada.", 'error');
+                });
+
+            } else {
+                // Caso a configuração esteja ausente
+                console.error("Configuração do Firebase não encontrada.");
+                showToast("Erro: Configuração do Firebase não encontrada.", 'error');
+            }
+        } catch (initError) {
+            // Captura erros de parsing JSON ou initializeApp
+            console.error("Erro fatal ao inicializar Firebase:", initError);
+            showToast(`Erro fatal ao inicializar Firebase: ${initError.message}`, 'error');
         }
         
         // 2. Funções de Utilidade
@@ -402,7 +416,11 @@
         // 3. Funções de Persistência (Firestore)
 
         function getDemandsCollectionRef() {
-            if (!db || !userId) throw new Error("Firebase não inicializado ou userId ausente.");
+            if (!db || !userId) {
+                 // Esta verificação é crucial para evitar o erro "Firebase não inicializado"
+                console.error("ERRO: Tentativa de acessar Firestore antes da inicialização completa (db ou userId ausente).");
+                throw new Error("Firebase não inicializado ou userId ausente.");
+            }
             const collectionPath = `artifacts/${appId}/users/${userId}/demands`;
             return collection(db, collectionPath);
         }
