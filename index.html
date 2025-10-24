@@ -303,12 +303,12 @@
 
     <!-- Bloco de scripts do Firebase e JS da Aplicação -->
     <script type="module">
-        // Importações do Firebase SDK
+        // Importações do Firebase SDK (versão 11.6.1 é a versão obrigatória para este ambiente)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, orderBy, limit, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variáveis globais (fornecidas pelo ambiente Canvas)
+        // Variáveis globais (fornecidas pelo ambiente Canvas - USO OBRIGATÓRIO)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
@@ -323,15 +323,15 @@
         // Elementos DOM
         const searchInput = document.getElementById('searchInput');
 
-        // Configurações e Inicialização do Firebase (AGORA MAIS ROBUSTO)
+        // Configurações e Inicialização do Firebase (USANDO OBRIGATORIAMENTE __firebase_config)
         try {
-            // 1. Tenta analisar a configuração do Firebase
+            // 1. Tenta analisar a configuração do Firebase (deve vir de __firebase_config)
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 firebaseConfig = JSON.parse(__firebase_config);
             }
 
             if (firebaseConfig) {
-                setLogLevel('debug'); // Ativa logs do Firestore
+                setLogLevel('debug'); // Ativa logs do Firestore para depuração
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -421,6 +421,7 @@
                 console.error("ERRO: Tentativa de acessar Firestore antes da inicialização completa (db ou userId ausente).");
                 throw new Error("Firebase não inicializado ou userId ausente.");
             }
+            // Caminho de coleção padrão para dados privados
             const collectionPath = `artifacts/${appId}/users/${userId}/demands`;
             return collection(db, collectionPath);
         }
@@ -757,6 +758,7 @@
             modalTitle.textContent = 'Nova Demanda';
             demandForm.reset();
             document.getElementById('demandId').value = '';
+            document.getElementById('isUrgent').checked = false; // Garante que esteja desmarcado por padrão
             demandModal.classList.remove('hidden');
             demandModal.classList.add('flex');
         });
